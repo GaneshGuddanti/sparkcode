@@ -1,0 +1,39 @@
+ spark-shell --master local[2] --executor-memory 8G --driver-memory 16G
+
+val loadfile = sc.textFile("hdfs://localhost:9000/user/gg7hz/InputFolder/input.txt")
+
+val userFriends = loadfile.flatMap(line => {
+          val parts = line.split("\\t")
+          if (parts.length < 2) {
+              // Skip lines that don't have the expected format (userID, friend list)
+              None
+          } else {
+              try {
+                  val user = parts(0).trim.toInt  // Trim any extra spaces
+                  val friends = parts(1).split(",").map(_.trim.toInt).toSet  // Trim spaces from friends list
+                  Some((user, friends))
+              } catch {
+                  case e: NumberFormatException => None // Skip lines with non-integer userID or friends
+              }
+          }
+      })
+
+val friendsOfFriends = userFriends.flatMap { case (user, friends) =>
+          friends.flatMap(friend => friends.map(fof => (friend, fof)))
+              .filter { case (friend, fof) => friend != fof } // Exclude direct friendships
+      }
+
+val directFriends = userFriends.flatMap { case (user, friends) =>
+          friends.map(friend => (user, friend))
+      }
+
+val indirectFriends = friendsOfFriends.subtract(directFriends)
+
+val groupedFriends = indirectFriends.groupByKey().mapValues(_.toSet)
+
+val formattedOutput = groupedFriends.map { case (user, friends) =>
+          val friendsList = friends.toList.sorted.mkString(",") // Convert Set to sorted List and join with commas
+          s"$user\t$friendsList" // Format as "user <tab> friends_list"
+      }.sortBy(_.split("\t")(0).toInt) // Sort by user ID (first part of the string)
+
+formattedOutput.coalesce(1).saveAsTextFile("hdfs://localhost:9000/user/gg7hz/OutputFolder/")
