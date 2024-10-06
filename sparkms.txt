@@ -1,1 +1,68 @@
+import java.time.Instant
+
+// Define the dataset sizes you want to test
+val datasetSizes = Seq(24997, 29997, 34997, 39997, 44997, 49997)
+
+// Initialize an empty list to store the results
+var results = List[(Int, Long)]()
+
+// For each dataset size, run the Spark job and measure execution time
+for (numLines <- datasetSizes) {
+    // Record the start time
+    val startTime = Instant.now.toEpochMilli()
+
+    // Load the input data and limit to numLines
+    val loadfile = sc.textFile("hdfs://localhost:9000/user/gg7hz/InputFolder/input.txt").take(numLines)
+
+    val userFriends = sc.parallelize(loadfile).flatMap(line => {
+        val parts = line.split("\\t")
+        if (parts.length < 2) {
+            None // Skip lines without expected format
+        } else {
+            try {
+                val user = parts(0).trim.toInt  // Trim spaces
+                val friends = parts(1).split(",").map(_.trim.toInt).toSet  // Trim spaces from friends list
+                Some((user, friends))
+            } catch {
+                case e: NumberFormatException => None // Skip lines with non-integer userID or friends
+            }
+        }
+    })
+
+    val friendsOfFriends = userFriends.flatMap { case (user, friends) =>
+        friends.flatMap(friend => friends.map(fof => (friend, fof)))
+            .filter { case (friend, fof) => friend != fof } // Exclude direct friendships
+    }
+
+    val directFriends = userFriends.flatMap { case (user, friends) =>
+        friends.map(friend => (user, friend))
+    }
+
+    val indirectFriends = friendsOfFriends.subtract(directFriends)
+
+    val groupedFriends = indirectFriends.groupByKey().mapValues(_.toSet)
+
+    val formattedOutput = groupedFriends.map { case (user, friends) =>
+        val friendsList = friends.toList.sorted.mkString(",") // Convert Set to sorted List and join with commas
+        s"$user\t$friendsList" // Format as "user <tab> friends_list"
+    }.sortBy(_.split("\t")(0).toInt) // Sort by user ID
+
+    // Coalesce and save the output to HDFS
+    formattedOutput.coalesce(1).saveAsTextFile(s"hdfs://localhost:9000/user/gg7hz/OutputFolder/output_$numLines")
+
+    // Record the end time
+    val endTime = Instant.now.toEpochMilli()
+
+    // Calculate the execution time
+    val totalTime = endTime - startTime
+
+    // Add the results to the list
+    results = results :+ (numLines, totalTime)
+}
+
+// Print the table of results
+println("Input (no of lines)\tTime taken by Spark (ms)")
+results.foreach { case (numLines, time) =>
+    println(s"$numLines\t$time ms")
+}
 
