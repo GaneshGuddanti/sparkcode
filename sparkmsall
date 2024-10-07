@@ -1,0 +1,73 @@
+// Load the input file once
+val loadfile = sc.textFile("hdfs://localhost:9000/user/gg7hz/InputFolder/input.txt")
+
+// Function to process N lines of input
+def processInputLines(numLines: Int): Long = {
+    // Take 'numLines' from the loaded file
+    val limitedFile = loadfile.take(numLines)
+    
+    // Create an RDD from the limited data
+    val rdd = sc.parallelize(limitedFile)
+
+    // Record the start time
+    val startTime = System.currentTimeMillis()
+
+    // Process the data as before
+    val userFriends = rdd.flatMap(line => {
+        val parts = line.split("\\t")
+        if (parts.length < 2) {
+            None
+        } else {
+            try {
+                val user = parts(0).trim.toInt
+                val friends = parts(1).split(",").map(_.trim.toInt).toSet
+                Some((user, friends))
+            } catch {
+                case e: NumberFormatException => None
+            }
+        }
+    })
+
+    val friendsOfFriends = userFriends.flatMap { case (user, friends) =>
+        friends.flatMap(friend => friends.map(fof => (friend, fof)))
+            .filter { case (friend, fof) => friend != fof }
+    }
+
+    val directFriends = userFriends.flatMap { case (user, friends) =>
+        friends.map(friend => (user, friend))
+    }
+
+    val indirectFriends = friendsOfFriends.subtract(directFriends)
+
+    val groupedFriends = indirectFriends.groupByKey().mapValues(_.toSet)
+
+    val formattedOutput = groupedFriends.map { case (user, friends) =>
+        val friendsList = friends.toList.sorted.mkString(",")
+        s"$user\t$friendsList"
+    }.sortBy(_.split("\t")(0).toInt)
+
+    // Optionally, save the output for each set of input lines (can be removed if not needed)
+    formattedOutput.coalesce(1).saveAsTextFile(s"hdfs://localhost:9000/user/gg7hz/OutputFolder_${numLines}/")
+
+    // Record the end time
+    val endTime = System.currentTimeMillis()
+
+    // Return the execution time
+    endTime - startTime
+}
+
+// List of input sizes to test (e.g., 24997, 29997, 34997, etc.)
+val inputSizes = List(24997, 29997, 34997, 39997, 44997, 49997)
+
+// Measure and print the execution time for each input size
+val times = inputSizes.map { numLines =>
+    val timeTaken = processInputLines(numLines)
+    println(s"Time taken for $numLines lines: $timeTaken ms")
+    (numLines, timeTaken)
+}
+
+// Optionally, print the results in table format
+println("Input (no of lines) | Time taken by Spark (ms)")
+times.foreach { case (numLines, time) =>
+    println(s"$numLines\t|\t$time")
+}
