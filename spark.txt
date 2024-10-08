@@ -20,7 +20,7 @@ val userFriends = loadfile.flatMap(line => {
 
 val friendsOfFriends = userFriends.flatMap { case (user, friends) =>
           friends.flatMap(friend => friends.map(fof => (friend, fof)))
-              .filter { case (friend, fof) => friend != fof } // Exclude direct friendships
+              .filter { case (friend, fof) => friend != fof } 
       }
 
 val directFriends = userFriends.flatMap { case (user, friends) =>
