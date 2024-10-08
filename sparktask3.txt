@@ -13,4 +13,4 @@ val pairs = for { i <- filteredUserFriendsArray.indices; j <- (i + 1) until filt
 val validPairs = pairs.filter { case (_, _, sharedCount) => sharedCount > 10 && sharedCount < 100 }; 
 val formattedValidPairs = validPairs.map { case (user1, user2, count) => s"$user1\t$user2\t$count" }.sortBy(_.split("\t")(0).toInt); 
 val formattedValidPairsRDD = sc.parallelize(formattedValidPairs) // Convert to RDD
-formattedValidPairsRDD.coalesce(1).saveAsTextFile("hdfs://localhost:9000/user/gg7hz/OutputFolder/")
+formattedValidPairsRDD.coalesce(1).saveAsTextFile("hdfs://localhost:9000/user/gg7hz/OutputFolder3/")
