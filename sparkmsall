@@ -1,12 +1,11 @@
 // Load the input file once
 val loadfile = sc.textFile("hdfs://localhost:9000/user/gg7hz/InputFolder/input.txt")
 
-// Function to process N lines of input
 def processInputLines(numLines: Int): Long = {
-    // Take 'numLines' from the loaded file
+    
     val limitedFile = loadfile.take(numLines)
     
-    // Create an RDD from the limited data
+    // Create an RDD from the limited dat
     val rdd = sc.parallelize(limitedFile)
 
     // Record the start time
@@ -46,20 +45,15 @@ def processInputLines(numLines: Int): Long = {
         s"$user\t$friendsList"
     }.sortBy(_.split("\t")(0).toInt)
 
-    // Optionally, save the output for each set of input lines (can be removed if not needed)
     formattedOutput.coalesce(1).saveAsTextFile(s"hdfs://localhost:9000/user/gg7hz/OutputFolder_${numLines}/")
 
-    // Record the end time
     val endTime = System.currentTimeMillis()
 
-    // Return the execution time
     endTime - startTime
 }
-
-// List of input sizes to test (e.g., 24997, 29997, 34997, etc.)
 val inputSizes = List(24997, 29997, 34997, 39997, 44997, 49997)
 
-// Measure and print the execution time for each input size
+
 val times = inputSizes.map { numLines =>
     val timeTaken = processInputLines(numLines)
     println(s"Time taken for $numLines lines: $timeTaken ms")
